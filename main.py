@@ -1,5 +1,3 @@
-import os
-import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,8 +8,9 @@ from inverse_model.solve import InverseProblemSolver
 
 
 def get_grid_permittivity(grid_positions):
-    center_x = 0.3
-    center_y = 0.3
+
+    center_x = 0.4
+    center_y = 0.4
     radius = 0.15
     epsilon_r = 2
 
@@ -26,7 +25,43 @@ def get_grid_permittivity(grid_positions):
     #         (grid_positions[1] <= center_y + radius) & (grid_positions[1] >= center_y - radius))
     # scatterer[mask] = epsilon_r
 
+    fig, (ax1, ax2) = plt.subplots(ncols=2)
+
+    original = ax1.imshow(np.real(scatterer), cmap=plt.cm.hot, extent=PlotUtils.get_doi_extent())
+    fig.colorbar(original, ax=ax1, fraction=0.046, pad=0.04)
+    ax1.title.set_text("Scatterer: real")
+
+    reconstructed_real = ax2.imshow(np.imag(scatterer), cmap=plt.cm.hot, extent=PlotUtils.get_doi_extent())
+    fig.colorbar(reconstructed_real, ax=ax2, fraction=0.046, pad=0.04)
+    ax2.title.set_text("Scatterer: imaginary")
+
     return scatterer
+
+
+def solve_many(A, data, prior):
+    values = np.linspace(0, 1e3, 20)
+    fig1, axes1 = plt.subplots(nrows=4, ncols=5)
+    fig2, axes2 = plt.subplots(nrows=4, ncols=5)
+
+    real_rec = []
+    imag_rec =  []
+    for value in values:
+        params = {"alpha": value}
+        chi_real, chi_imag = InverseProblemSolver.solve(A, data, prior, params)
+        real_rec.append(chi_real)
+        imag_rec.append(chi_imag)
+
+    fig1.subplots_adjust(hspace=0.2)
+    fig1.suptitle('Reconstructions for real part')
+
+    for ax, rec, in zip(axes1.flatten(), real_rec):
+        ax.imshow(rec, cmap=plt.cm.hot, extent=PlotUtils.get_doi_extent())
+
+    fig2.subplots_adjust(hspace=0.2)
+    fig2.suptitle('Reconstructions for imaginary part')
+
+    for ax, rec, in zip(axes2.flatten(), imag_rec):
+        ax.imshow(rec, cmap=plt.cm.hot, extent=PlotUtils.get_doi_extent())
 
 
 def plot_results(scatterer, chi_real, chi_imag):
@@ -65,7 +100,10 @@ if __name__ == '__main__':
     data = InverseProblemSolver.get_measurement_data(direct_power, total_power)
 
     prior = "ridge_complex"
-    params = {"alpha": 1}
-    chi_real, chi_imag = InverseProblemSolver.solve(A, data, prior, params)
 
+    params = {"alpha": 10}
+    # params = {"rho": 0.1}
+    chi_real, chi_imag = InverseProblemSolver.solve(A, data, prior, params)
     plot_results(scatterer, chi_real, chi_imag)
+
+    # solve_many(A, data, prior)
