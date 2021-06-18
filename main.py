@@ -1,4 +1,6 @@
+import pickle
 import numpy as np
+from scipy.io import loadmat
 import matplotlib.pyplot as plt
 
 from configs.config import Config
@@ -12,7 +14,7 @@ def get_grid_permittivity(grid_positions):
     center_x = 0.4
     center_y = 0.4
     radius = 0.15
-    epsilon_r = 2
+    epsilon_r = 1.1
 
     m = Config.doi["forward_grids"]
     scatterer = np.ones((m, m), dtype=float)
@@ -68,7 +70,7 @@ def plot_results(scatterer, chi_real, chi_imag):
 
     fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
 
-    original = ax1.imshow(scatterer, cmap=plt.cm.hot, extent=PlotUtils.get_doi_extent())
+    original = ax1.imshow(scatterer, cmap=plt.cm.hot)
     fig.colorbar(original, ax=ax1, fraction=0.046, pad=0.04)
     ax1.title.set_text("Original scatterer")
 
@@ -83,26 +85,23 @@ def plot_results(scatterer, chi_real, chi_imag):
 
 if __name__ == '__main__':
 
-    # Forward problem
-
+    """" Solve the Forward Problem """
     # Instantiate forward model
     forward = MethodOfMomentModel()
 
-    # Create scatterer
+    """" Generate / Read the scatterer """
     scatterer = get_grid_permittivity(forward.grid_positions)
 
     # Generate forward data for scatterer
     direct_field, direct_power, total_field, total_power = forward.generate_forward_data(scatterer)
 
-    # Inverse problem
+    """" Solve the Inverse Problem """
 
     A = InverseProblemSolver.get_inverse_model()
     data = InverseProblemSolver.get_measurement_data(direct_power, total_power)
-
-    prior = "ridge_complex"
-
+    prior = "qs2D_complex"
     params = {"alpha": 10}
-    # params = {"rho": 0.1}
+
     chi_real, chi_imag = InverseProblemSolver.solve(A, data, prior, params)
     plot_results(scatterer, chi_real, chi_imag)
 
