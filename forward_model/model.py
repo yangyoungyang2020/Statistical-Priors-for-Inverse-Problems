@@ -75,54 +75,43 @@ class MethodOfMomentModel:
         return incident_field
 
     def find_grids_with_object(self, grid_permittivities):
-        """
-        Returns centroids of grids containing scatterers
-        List containing x,y indices of grids containing point scatterers
-        """
-        self.object_grid_centroids = []
-        self.object_grid_locations = []
-        for i in range(grid_permittivities.shape[0]):
-            for j in range(grid_permittivities.shape[1]):
-                if grid_permittivities[i, j] != 1:
-                    x_coord = round(self.grid_positions[0][i, j], 4)
-                    y_coord = round(self.grid_positions[1][i, j], 4)
-                    self.object_grid_centroids.append((x_coord, y_coord))
-                    self.object_grid_locations.append((i, j))
+        # Unroll all grid numbers into one array, return the grid numbers that contain objects
         unrolled_permittivities = grid_permittivities.reshape(grid_permittivities.size, order='F')
         self.object_grid_indices = np.nonzero(unrolled_permittivities != 1)
+        self.object_grid_indices = self.object_grid_indices[0]
 
     def get_field_from_scattering(self, grid_permittivities):
-        """
-        Object field is a 2D array that captures the field on every point scatterer due to every other point scatterer
-        """
-        object_field = np.zeros((len(self.object_grid_centroids), len(self.object_grid_centroids)), dtype=complex)
-        all_x = [grid[0] for grid in self.object_grid_centroids]
-        all_y = [grid[1] for grid in self.object_grid_centroids]
-        for i in range(len(self.object_grid_centroids)):
-            # Centroid of grid containing point scatterer we are measuring the field on
-            x_incident = self.object_grid_centroids[i][0]
-            y_incident = self.object_grid_centroids[i][1]
+        """ Object field is a 2D array that captures the field on every point scatterer
+        due to every other point scatterer """
+        Z = np.zeros((len(self.object_grid_indices), len(self.object_grid_indices)), dtype=complex)
+        unroll_x = self.grid_positions[0].reshape(self.grid_positions[0].size, order='F')
+        unroll_y = self.grid_positions[1].reshape(self.grid_positions[1].size, order='F')
+        unrolled_permittivities = grid_permittivities.reshape(grid_permittivities.size, order='F')
+        x_obj = unroll_x[self.object_grid_indices]
+        y_obj = unroll_y[self.object_grid_indices]
 
-            x_gridnum = self.object_grid_locations[i][0]
-            y_gridnum = self.object_grid_locations[i][1]
+        for index, value in enumerate(self.object_grid_indices):
+            x_incident = x_obj[index]
+            y_incident = y_obj[index]
 
-            dipole_distances = np.sqrt((x_incident - all_x)**2 + (y_incident - all_y)**2)
-            assert len(dipole_distances) == len(self.object_grid_centroids)
+            dipole_distances = np.sqrt((x_incident - x_obj) ** 2 + (y_incident - y_obj) ** 2)
+            z1 = -self.impedance * np.pi * (self.grid_radius / 2) * bessel1(1, self.wave_number * self.grid_radius) * hankel1(0, self.wave_number * dipole_distances)
 
-            z1 = -self.impedance * np.pi * (self.grid_radius/2) * bessel1(1, self.wave_number * self.grid_radius) * hankel1(0, self.wave_number*dipole_distances)
-            z1[i] = -self.impedance*np.pi*(self.grid_radius/2)*hankel1(1,self.wave_number*self.grid_radius)-1j*self.impedance*grid_permittivities[x_gridnum,y_gridnum]/(self.wave_number*(grid_permittivities[x_gridnum,y_gridnum]-1))
+            z1[index] = -self.impedance * np.pi * (self.grid_radius / 2) *\
+                    hankel1(1, self.wave_number * self.grid_radius) - 1j * self.impedance * unrolled_permittivities[value] / (self.wave_number * (unrolled_permittivities[value]- 1))
             assert len(z1) == len(dipole_distances)
-            object_field[i, :] = z1
-        return object_field
+            Z[index, :] = z1
+        return Z
 
     def get_induced_current(self, object_field, incident_field):
-
+        # Only consider that part of incident field which falls on grids containing object
         incident_field_on_object = - incident_field[self.object_grid_indices]
+
         J1 = np.linalg.inv(object_field) @ incident_field_on_object
 
         current = np.zeros((self.m**2, self.number_of_tx), dtype=complex)
-        for i in range(len(self.object_grid_indices[0])):
-            current[self.object_grid_indices[0][i],:] = J1[i,:]
+        for i in range(len(self.object_grid_indices)):
+            current[self.object_grid_indices[i], :] = J1[i, :]
 
         return current
 
