@@ -97,10 +97,12 @@ if __name__ == '__main__':
 
     """" Solve the Inverse Problem """
 
-    A = InverseProblemSolver.get_inverse_model()
-    data = InverseProblemSolver.get_measurement_data(direct_power, total_power)
+    model_type = "prytov_complex"
     prior = "qs2D_complex"
     params = {"alpha": 10}
+
+    A = InverseProblemSolver.get_inverse_model(model_type)
+    data = InverseProblemSolver.get_measurement_data(model_type, direct_power, total_power)
 
     chi_real, chi_imag = InverseProblemSolver.solve(A, data, prior, params)
     plot_results(scatterer, chi_real, chi_imag)
